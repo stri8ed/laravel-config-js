@@ -13,9 +13,8 @@ class DirectiveTest extends TestCase
 
         $result = Directive::compile('app.name');
 
-
         $this->assertStringContainsString('<script type="text/javascript">', $result);
-        $this->assertStringContainsString('{"app.name":"Laravel Test"}', $result);
+        $this->assertStringContainsString(json_encode(['app' => ['name' => 'Laravel Test']]), $result);
         $this->assertStringContainsString('laravelConfig', $result);
     }
 
@@ -28,8 +27,8 @@ class DirectiveTest extends TestCase
 
         $result = Directive::compile('["app.name", "app.env"]');
 
-        $this->assertStringContainsString('"app.name":"Laravel Test"', $result);
-        $this->assertStringContainsString('"app.env":"testing"', $result);
+        $expectedJson = json_encode(['app' => ['name' => 'Laravel Test', 'env' => 'testing']]);
+        $this->assertStringContainsString($expectedJson, $result);
     }
 
     public function test_handles_nested_config_values()
@@ -42,7 +41,8 @@ class DirectiveTest extends TestCase
 
         $result = Directive::compile('nested');
 
-        $this->assertStringContainsString('"nested":{"key1":{"key2":"value"}}', $result);
+        $expectedJson = json_encode(['nested' => ['key1' => ['key2' => 'value']]]);
+        $this->assertStringContainsString($expectedJson, $result);
     }
 
     public function test_uses_custom_function_name_from_config()
@@ -53,5 +53,57 @@ class DirectiveTest extends TestCase
         $result = Directive::compile('app.name');
 
         $this->assertStringContainsString('window.customConfig', $result);
+    }
+
+    public function test_compiles_deeply_nested_single_key()
+    {
+        config(['aws.services.lambda.url' => 'https://lambda.aws.com']);
+
+        $result = Directive::compile('aws.services.lambda.url');
+
+        $expectedJson = json_encode([
+            'aws' => [
+                'services' => [
+                    'lambda' => [
+                        'url' => 'https://lambda.aws.com'
+                    ]
+                ]
+            ]
+        ]);
+        $this->assertStringContainsString($expectedJson, $result);
+    }
+
+    public function test_compiles_multiple_nested_keys_under_same_parent()
+    {
+        config([
+            'aws.lambda.url' => 'https://lambda.aws.com',
+            'aws.lambda.region' => 'us-east-1',
+            'aws.s3.bucket' => 'my-bucket'
+        ]);
+
+        $result = Directive::compile('["aws.lambda.url", "aws.lambda.region", "aws.s3.bucket"]');
+
+        $expectedJson = json_encode([
+            'aws' => [
+                'lambda' => [
+                    'url' => 'https://lambda.aws.com',
+                    'region' => 'us-east-1'
+                ],
+                's3' => [
+                    'bucket' => 'my-bucket'
+                ]
+            ]
+        ]);
+        $this->assertStringContainsString($expectedJson, $result);
+    }
+
+    public function test_handles_null_config_values()
+    {
+        config(['app.nullable' => null]);
+
+        $result = Directive::compile('app.nullable');
+
+        $expectedJson = json_encode(['app' => ['nullable' => null]]);
+        $this->assertStringContainsString($expectedJson, $result);
     }
 }
